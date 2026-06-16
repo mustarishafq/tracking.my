@@ -735,7 +735,7 @@ form.addEventListener('submit', async (e) => {
     </div>`;
 
   try {
-    const res = await fetch(`/api/track?tracking_number=${encodeURIComponent(tn)}&courier=${encodeURIComponent(courier)}`);
+    const res = await fetch(`/api/track?tracking_number=${encodeURIComponent(tn)}&courier=${encodeURIComponent(courier)}&full=1`);
     const data = await res.json();
     render(data);
   } catch (err) {

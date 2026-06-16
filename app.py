@@ -4,6 +4,7 @@ app.py - Local web app + JSON API for checking tracking.my shipment status.
 Runs a small Flask server with:
   - A simple search page:        http://localhost:5000/
   - A single-lookup JSON API:    GET  /api/track?tracking_number=XXX&courier=YYY
+                                  (latest milestone by default; add &full=1 for full journey)
   - A batch JSON API:            POST /api/track/batch
                                   body: {"items": [{"tracking_number": "...", "courier": "..."}]}
   - Parser health check:         GET  /api/health/parser
@@ -568,6 +569,18 @@ def build_api_response(
     )
 
 
+def compact_api_payload(payload: dict) -> dict:
+    """Slim API response: shipment summary + latest milestone only."""
+    return {
+        "ok": payload.get("ok"),
+        "tracking_number": payload.get("tracking_number"),
+        "courier": payload.get("courier"),
+        "shipment": payload.get("shipment"),
+        "latest_milestone": payload.get("latest_event"),
+        "error": payload.get("error"),
+    }
+
+
 def track_one(tracking_number: str, courier: str = "") -> TrackResult:
     result = TrackResult(tracking_number=tracking_number, courier_input=courier)
     with _lock:
@@ -616,6 +629,9 @@ def api_track():
         return jsonify({"ok": False, "error": {"type": "ValidationError", "message": "tracking_number query param is required"}}), 400
     result = track_one(tn, courier)
     payload = build_api_response(result)
+    full = request.args.get("full", "").lower() in ("1", "true", "yes")
+    if not full:
+        payload = compact_api_payload(payload)
     status = 200 if payload.get("ok") else 503
     return jsonify(payload), status
 
