@@ -1,0 +1,14 @@
+# 1. Make sure Python 3.9+ is installed first:
+#      python3 --version
+#    If not installed on macOS:
+#      brew install python
+#    (or download from https://www.python.org/downloads/)
+#
+# 2. Then install these packages:
+#      python3 -m pip install -r requirements.txt
+#
+# 3. Run the app:
+#      python3 app.py
+
+selenium>=4.20.0
+flask>=3.0.0
