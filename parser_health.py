@@ -71,7 +71,7 @@ def diagnose_parse_health(result: Any, payload: dict) -> dict:
         issues.append("results_page_not_reached")
 
     if on_results_page and not has_known_miss:
-        if has_timeline and not result.last_update:
+        if has_timeline and not result.journey and not result.last_update:
             issues.append("timeline_not_parsed")
         if not result.status and not shipment.get("summary"):
             issues.append("status_not_parsed")

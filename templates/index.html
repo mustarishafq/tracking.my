@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0870b8">
+<title>Parcel Tracker — EMZI Nexus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  try {
+    if (localStorage.getItem('nexus-theme') === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  } catch (e) {}
+</script>
+<style>
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 206 92% 36%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 220 14% 96%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 206 92% 36%;
+    --success: 160 84% 39%;
+    --warning: 38 92% 50%;
+    --info: 210 71% 35%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 220 14% 96%;
+    --card: 222 47% 9%;
+    --card-foreground: 220 14% 96%;
+    --secondary: 222 40% 14%;
+    --muted: 222 40% 14%;
+    --muted-foreground: 220 9% 56%;
+    --accent: 222 40% 14%;
+    --destructive: 0 62% 30%;
+    --border: 222 40% 16%;
+    --input: 222 40% 16%;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; border-color: hsl(var(--border)); }
+
+  html { -webkit-font-smoothing: antialiased; }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    line-height: 1.5;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  .glass-panel {
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    background: hsl(var(--card) / 0.3);
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    ring: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .dark .glass-panel {
+    background: hsl(var(--card) / 0.35);
+    border-bottom-color: hsl(var(--border) / 0.7);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  .topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    height: 4rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    transition: all 0.2s;
+  }
+
+  .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+  }
+
+  .topbar-logo {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    background: hsl(var(--primary) / 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: hsl(var(--primary));
+  }
+
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: hsl(var(--foreground));
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  .icon-btn:hover { background: hsl(var(--muted)); }
+
+  .main {
+    padding: 5rem 1rem 2rem;
+    max-width: 42rem;
+    margin: 0 auto;
+  }
+
+  @media (min-width: 640px) {
+    .main { padding: 5rem 1.5rem 3rem; }
+  }
+
+  .space-y-6 > * + * { margin-top: 1.5rem; }
+
+  .page-header {
+    animation: headerIn 0.35s ease forwards;
+  }
+
+  @keyframes headerIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .page-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .page-title { font-size: 1.5rem; }
+  }
+
+  .page-title .lucide { width: 1.5rem; height: 1.5rem; color: hsl(var(--primary)); }
+
+  .page-desc {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .card {
+    background: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    border: 1px solid hsl(var(--border));
+    border-radius: 1rem;
+    overflow: hidden;
+    transition: box-shadow 0.3s, border-color 0.3s;
+    animation: cardIn 0.4s ease forwards;
+  }
+
+  .card:hover { box-shadow: 0 10px 40px hsl(var(--primary) / 0.05); }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .card-header {
+    padding: 1.5rem 1.5rem 0.75rem;
+  }
+
+  .card-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .card-desc {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .card-content { padding: 0 1.5rem 1.5rem; }
+
+  .form-stack { display: flex; flex-direction: column; gap: 1rem; }
+
+  label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.375rem;
+    color: hsl(var(--foreground));
+  }
+
+  .field-hint {
+    font-weight: 400;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.75rem;
+  }
+
+  .input {
+    display: flex;
+    width: 100%;
+    height: 2.25rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    border: 1px solid hsl(var(--input));
+    border-radius: calc(var(--radius) - 2px);
+    background: transparent;
+    color: hsl(var(--foreground));
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.15s;
+  }
+
+  .input::placeholder { color: hsl(var(--muted-foreground)); }
+
+  .input:focus {
+    outline: none;
+    box-shadow: 0 0 0 1px hsl(var(--ring));
+  }
+
+  .input-mono { font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem; }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8125rem;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    height: 2.5rem;
+    padding: 0 1rem;
+    margin-top: 0.25rem;
+    border: none;
+    border-radius: calc(var(--radius) - 2px);
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 4px 14px hsl(var(--primary) / 0.2);
+    transition: background 0.2s, box-shadow 0.2s, opacity 0.2s;
+  }
+
+  @media (min-width: 640px) {
+    .btn { width: auto; height: 2.25rem; padding: 0 1.5rem; }
+  }
+
+  .btn:hover:not(:disabled) {
+    background: hsl(var(--primary) / 0.9);
+    box-shadow: 0 4px 18px hsl(var(--primary) / 0.3);
+  }
+
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid hsl(var(--primary-foreground) / 0.35);
+    border-top-color: hsl(var(--primary-foreground));
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+
+  .btn.loading .spinner { display: block; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state {
+    padding: 4rem 1.5rem;
+    text-align: center;
+    border: 1px dashed hsl(var(--border));
+    border-radius: 1rem;
+    background: hsl(var(--card));
+    animation: cardIn 0.4s ease forwards;
+  }
+
+  .empty-state .lucide {
+    width: 2.5rem;
+    height: 2.5rem;
+    color: hsl(var(--muted-foreground) / 0.6);
+    margin-bottom: 0.75rem;
+  }
+
+  .empty-state p {
+    margin: 0;
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .loading-state {
+    padding: 3rem 1.5rem;
+    text-align: center;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 1rem;
+  }
+
+  .loading-spinner {
+    width: 2rem;
+    height: 2rem;
+    margin: 0 auto;
+    border: 2px solid hsl(var(--muted));
+    border-top-color: hsl(var(--primary));
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .loading-state p {
+    margin: 1rem 0 0;
+    font-size: 0.875rem;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .loading-state small {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .alert {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    margin-bottom: 1rem;
+  }
+
+  .alert-destructive {
+    background: hsl(var(--destructive) / 0.1);
+    border: 1px solid hsl(var(--destructive) / 0.3);
+    color: hsl(var(--destructive));
+  }
+
+  .dark .alert-destructive { color: hsl(0 84% 70%); }
+
+  .alert-warning {
+    background: hsl(var(--warning) / 0.1);
+    border: 1px solid hsl(var(--warning) / 0.3);
+    color: hsl(var(--warning));
+  }
+
+  .alert strong {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.125rem;
+    color: hsl(var(--foreground));
+  }
+
+  .result-header {
+    display: flex;
+    gap: 0.875rem;
+    align-items: flex-start;
+    padding: 1.5rem 1.5rem 0;
+  }
+
+  .status-box {
+    flex-shrink: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .status-box.success { background: hsl(var(--success) / 0.1); color: hsl(var(--success)); }
+  .status-box.warning { background: hsl(var(--warning) / 0.1); color: hsl(var(--warning)); }
+  .status-box.danger { background: hsl(var(--destructive) / 0.1); color: hsl(var(--destructive)); }
+  .status-box.info { background: hsl(var(--info) / 0.1); color: hsl(var(--info)); }
+
+  .status-box .lucide { width: 1.25rem; height: 1.25rem; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: calc(var(--radius) - 2px);
+    border: 1px solid transparent;
+    padding: 0.125rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.375rem;
+  }
+
+  .badge.success { background: hsl(var(--success) / 0.1); color: hsl(var(--success)); border-color: hsl(var(--success) / 0.2); }
+  .badge.warning { background: hsl(var(--warning) / 0.1); color: hsl(var(--warning)); border-color: hsl(var(--warning) / 0.2); }
+  .badge.danger { background: hsl(var(--destructive) / 0.1); color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.2); }
+  .badge.info { background: hsl(var(--info) / 0.1); color: hsl(var(--info)); border-color: hsl(var(--info) / 0.2); }
+
+  .result-summary {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .tracking-id {
+    margin: 0.25rem 0 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem 1.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  .stat-item {
+    background: hsl(var(--muted));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    padding: 0.875rem 1rem;
+    transition: border-color 0.2s;
+  }
+
+  .stat-item:hover { border-color: hsl(var(--primary) / 0.3); }
+
+  .stat-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-value {
+    font-size: 0.875rem;
+    font-weight: 500;
+    word-break: break-word;
+  }
+
+  .stat-value a {
+    color: hsl(var(--primary));
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    transition: color 0.2s;
+  }
+
+  .stat-value a:hover { color: hsl(var(--primary) / 0.8); }
+
+  .section-label {
+    padding: 0 1.5rem;
+    margin: 0 0 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .timeline {
+    margin: 0 1.5rem 1.5rem;
+    padding-left: 1.25rem;
+    border-left: 2px solid hsl(var(--border));
+  }
+
+  .timeline-item {
+    position: relative;
+    padding-bottom: 1.125rem;
+  }
+
+  .timeline-item:last-child {
+    padding-bottom: 0;
+  }
+
+  .timeline-item.latest .timeline-dot {
+    background: hsl(var(--success));
+    box-shadow: 0 0 0 3px hsl(var(--card)), 0 0 0 5px hsl(var(--success) / 0.25);
+  }
+
+  .timeline-item.latest .timeline-desc {
+    color: hsl(var(--foreground));
+    font-weight: 600;
+  }
+
+  .timeline-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+    background: hsl(var(--primary));
+    border-radius: 50%;
+    margin-left: -1.5625rem;
+    margin-bottom: -0.375rem;
+    box-shadow: 0 0 0 3px hsl(var(--card));
+  }
+
+  .timeline-time {
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0.125rem;
+  }
+
+  @media (min-width: 640px) {
+    .timeline-time { font-size: 0.75rem; }
+  }
+
+  .timeline-desc {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.125rem;
+  }
+
+  .timeline-loc {
+    font-size: 0.8125rem;
+    color: hsl(var(--muted-foreground));
+    margin-bottom: 0;
+  }
+
+  .timeline-datetime {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    color: hsl(var(--muted-foreground));
+    margin-top: 0.125rem;
+  }
+
+  details {
+    margin: 0 1.5rem 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid hsl(var(--border));
+  }
+
+  summary {
+    cursor: pointer;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  summary::-webkit-details-marker { display: none; }
+
+  summary:hover { color: hsl(var(--foreground)); }
+
+  pre {
+    white-space: pre-wrap;
+    background: hsl(var(--muted));
+    padding: 0.75rem;
+    border-radius: calc(var(--radius) - 2px);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    max-height: 240px;
+    overflow: auto;
+    margin-top: 0.625rem;
+    color: hsl(var(--muted-foreground));
+    border: 1px solid hsl(var(--border));
+  }
+
+  .footer {
+    text-align: center;
+    font-size: 0.75rem;
+    color: hsl(var(--muted-foreground));
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .footer a {
+    color: hsl(var(--primary));
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .footer a:hover { color: hsl(var(--primary) / 0.8); }
+
+  .footer code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6875rem;
+    background: hsl(var(--muted));
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <header class="topbar glass-panel">
+    <div class="topbar-brand">
+      <div class="topbar-logo"><i data-lucide="package" aria-hidden="true"></i></div>
+      <span>Parcel Tracker</span>
+    </div>
+    <button type="button" class="icon-btn" id="theme-toggle" aria-label="Toggle theme">
+      <i data-lucide="sun" class="icon-sun" aria-hidden="true"></i>
+      <i data-lucide="moon" class="icon-moon hidden" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  <main class="main">
+    <div class="space-y-6">
+      <div class="page-header">
+        <h1 class="page-title">
+          <i data-lucide="truck" aria-hidden="true"></i>
+          Track parcel
+        </h1>
+        <p class="page-desc">Look up shipment status from tracking.my — courier auto-detected from the number.</p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Tracking lookup</h2>
+          <p class="card-desc">Enter a tracking number below. Each lookup opens headless Chrome and takes a few seconds.</p>
+        </div>
+        <div class="card-content">
+          <form id="f" class="form-stack">
+            <div>
+              <label for="tn">Tracking number</label>
+              <input class="input input-mono" id="tn" placeholder="680081624752013" required autocomplete="off" spellcheck="false">
+            </div>
+            <div>
+              <label for="courier">Courier <span class="field-hint">(optional)</span></label>
+              <input class="input" id="courier" placeholder="jt, poslaju, spx…" autocomplete="off">
+            </div>
+            <button id="btn" class="btn" type="submit">
+              <span class="spinner" aria-hidden="true"></span>
+              <i data-lucide="search" class="btn-icon" aria-hidden="true"></i>
+              <span class="btn-label">Track parcel</span>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div id="out">
+        <div class="empty-state">
+          <i data-lucide="package-open" aria-hidden="true"></i>
+          <p>Enter a tracking number to get started.<br>Results appear here after lookup completes.</p>
+        </div>
+      </div>
+
+      <p class="footer">
+        Powered by <a href="https://www.tracking.my/" target="_blank" rel="noopener">tracking.my</a>
+        · API <code>/api/track</code>
+      </p>
+    </div>
+  </main>
+
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<script>
+const form = document.getElementById('f');
+const out = document.getElementById('out');
+const btn = document.getElementById('btn');
+const btnLabel = btn.querySelector('.btn-label');
+const btnIcon = btn.querySelector('.btn-icon');
+const themeToggle = document.getElementById('theme-toggle');
+const iconSun = themeToggle.querySelector('.icon-sun');
+const iconMoon = themeToggle.querySelector('.icon-moon');
+
+function initTheme() {
+  const dark = document.documentElement.classList.contains('dark');
+  iconSun.classList.toggle('hidden', dark);
+  iconMoon.classList.toggle('hidden', !dark);
+}
+
+themeToggle.addEventListener('click', () => {
+  const dark = document.documentElement.classList.toggle('dark');
+  try { localStorage.setItem('nexus-theme', dark ? 'dark' : 'light'); } catch (e) {}
+  initTheme();
+  lucide.createIcons();
+});
+
+initTheme();
+lucide.createIcons();
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const tn = document.getElementById('tn').value.trim();
+  const courier = document.getElementById('courier').value.trim();
+  if (!tn) return;
+
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btnIcon.classList.add('hidden');
+  btnLabel.textContent = 'Looking up…';
+  out.innerHTML = `
+    <div class="loading-state">
+      <div class="loading-spinner" role="status" aria-label="Loading"></div>
+      <p>Opening tracking.my and fetching status…</p>
+      <small>Usually takes 5–10 seconds</small>
+    </div>`;
+
+  try {
+    const res = await fetch(`/api/track?tracking_number=${encodeURIComponent(tn)}&courier=${encodeURIComponent(courier)}`);
+    const data = await res.json();
+    render(data);
+  } catch (err) {
+    out.innerHTML = `
+      <div class="card">
+        <div class="card-content" style="padding-top:1.5rem">
+          <div class="alert alert-destructive">
+            <i data-lucide="x-circle"></i>
+            <div><strong>Request failed</strong>${escapeHtml(String(err))}</div>
+          </div>
+        </div>
+      </div>`;
+    lucide.createIcons();
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    btnIcon.classList.remove('hidden');
+    btnLabel.textContent = 'Track parcel';
+  }
+});
+
+function statusTone(status) {
+  const s = (status || '').toLowerCase();
+  if (/deliver|dihantar|complete/.test(s)) return 'success';
+  if (/not found|pending|belum|hold|exception|fail|gagal/.test(s)) return 'warning';
+  if (/error|return|pulang/.test(s)) return 'danger';
+  return 'info';
+}
+
+function statusLucide(tone) {
+  return ({ success: 'check-circle-2', warning: 'alert-triangle', danger: 'x-circle', info: 'arrow-up-right' })[tone] || 'arrow-up-right';
+}
+
+function renderTimelineItem(event, isLatest) {
+  const timeStr = [event.date, event.time].filter(Boolean).join(' · ');
+  const latestClass = isLatest ? ' latest' : '';
+  return `
+    <div class="timeline-item${latestClass}">
+      <div class="timeline-dot"></div>
+      <div class="timeline-time">${escapeHtml(timeStr)}</div>
+      <div class="timeline-desc">${escapeHtml(event.description || '-')}</div>
+      ${event.location ? `<div class="timeline-loc">${escapeHtml(event.location)}</div>` : ''}
+      ${event.datetime ? `<div class="timeline-datetime">${escapeHtml(event.datetime)}</div>` : ''}
+    </div>`;
+}
+
+function render(data) {
+  const shipment = data.shipment || {};
+  const courier = data.courier || {};
+  const health = data.parser_health || {};
+  const journey = data.journey || (data.latest_event ? [data.latest_event] : []);
+  const latestEvent = journey[0] || data.latest_event || {};
+  const tone = statusTone(shipment.status);
+  const statusText = shipment.summary || shipment.status || 'No status found';
+  const lucideName = statusLucide(tone);
+
+  let html = '<div class="card">';
+
+  if (health.needs_fix) {
+    html += `<div style="padding:1.5rem 1.5rem 0">
+      <div class="alert alert-warning">
+        <i data-lucide="alert-triangle"></i>
+        <div><strong>Parser may need updating</strong>${escapeHtml(health.message || 'tracking.my UI may have changed.')}
+        ${health.alert && health.alert.sent ? `<br><span style="font-size:0.75rem">Alert sent via ${escapeHtml((health.alert.channels || []).join(', '))}</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if (data.error) {
+    html += `<div style="padding:${health.needs_fix ? '0' : '1.5rem'} 1.5rem 0">
+      <div class="alert alert-destructive">
+        <i data-lucide="x-circle"></i>
+        <div><strong>${escapeHtml(data.error.type || 'Error')}</strong>${escapeHtml(data.error.message || '')}</div>
+      </div>
+    </div>`;
+  }
+
+  html += `
+    <div class="result-header">
+      <div class="status-box ${tone}"><i data-lucide="${lucideName}"></i></div>
+      <div>
+        <span class="badge ${tone}">${escapeHtml(shipment.status || 'Unknown')}</span>
+        <p class="result-summary">${escapeHtml(statusText)}</p>
+        <p class="tracking-id">#${escapeHtml(data.tracking_number || '')}</p>
+      </div>
+    </div>`;
+
+  html += '<div class="stats-grid">';
+  if (courier.detected || courier.slug) html += statItem('Courier', courier.detected || courier.slug);
+  if (shipment.delivery_date) html += statItem('Delivery date', shipment.delivery_date, true);
+  if (shipment.transit_note) html += statItem('Transit', shipment.transit_note);
+  if (journey.length) html += statItem('Updates', `${journey.length} events`);
+  if (data.source_url) {
+    html += statItem('Source', `<a href="${escapeHtml(data.source_url)}" target="_blank" rel="noopener">View on tracking.my <i data-lucide="external-link" style="width:0.875rem;height:0.875rem"></i></a>`);
+  }
+  html += '</div>';
+
+  if (journey.length) {
+    html += `<p class="section-label">Customer journey · ${journey.length} update${journey.length === 1 ? '' : 's'}</p>`;
+    html += '<div class="timeline">';
+    journey.forEach((event, index) => {
+      html += renderTimelineItem(event, index === 0);
+    });
+    html += '</div>';
+  } else if (latestEvent.date || latestEvent.description) {
+    html += `<p class="section-label">Latest update</p>`;
+    html += '<div class="timeline">' + renderTimelineItem(latestEvent, true) + '</div>';
+  }
+
+  html += `<details><summary><i data-lucide="code-2" style="width:0.875rem;height:0.875rem"></i> Debug — raw page text</summary><pre>${escapeHtml((data.debug && data.debug.raw_text) || '')}</pre></details>`;
+  html += '</div>';
+  out.innerHTML = html;
+  lucide.createIcons();
+}
+
+function statItem(label, value, mono) {
+  const v = value == null ? '' : String(value);
+  const valClass = mono ? 'stat-value font-mono' : 'stat-value';
+  return `<div class="stat-item"><div class="stat-label">${escapeHtml(label)}</div><div class="${valClass}">${v.startsWith('<') ? v : escapeHtml(v)}</div></div>`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

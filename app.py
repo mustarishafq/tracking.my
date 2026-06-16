@@ -33,10 +33,10 @@ import os
 import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template
 from parser_health import attach_parser_health
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
@@ -120,6 +120,7 @@ class TrackResult:
     page_url: str = ""
     status: str = ""
     last_update: str = ""
+    journey: list = field(default_factory=list)
     raw_text: str = ""
     error: str = ""
 
@@ -219,6 +220,115 @@ def navigate_to_tracking(driver, wait, tracking_number: str, courier: str = ""):
     time.sleep(1)
 
 
+TIMELINE_STOP = frozenset({
+    "Tracking number",
+    "Courier",
+    "Track",
+    "Scan to download",
+    "Articles",
+    "Contact Us",
+    "Careers",
+    "Terms",
+    "Privacy",
+})
+TIMELINE_SKIP_PREFIXES = (
+    "Show all",
+    "Get real-time",
+    "Send your parcel",
+    "Choose from",
+    "Full time",
+    "Grow your career",
+    "ADVERTISEMENT",
+    "View ad",
+)
+DATE_LINE = re.compile(
+    r"^\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b",
+    re.I,
+)
+TIME_LINE = re.compile(r"^\d{1,2}:\d{2}\s*[AP]M$", re.I)
+
+
+def expand_shipment_timeline(driver):
+    """Click 'Show all updates' so the full journey is in the page text."""
+    try:
+        for el in driver.find_elements(
+            By.XPATH, "//*[contains(text(),'Show all updates')]"
+        ):
+            if el.is_displayed():
+                driver.execute_script("arguments[0].click();", el)
+                time.sleep(1.5)
+                return
+    except NoSuchElementException:
+        pass
+
+
+def _skip_timeline_line(line: str) -> bool:
+    return line.startswith(TIMELINE_SKIP_PREFIXES) or line.isdigit()
+
+
+def extract_journey(body_text: str) -> list[dict]:
+    """Parse all shipment timeline events from tracking.my results text."""
+    lines = [line.strip() for line in body_text.splitlines() if line.strip()]
+    if "Shipment progress" not in lines:
+        return []
+
+    events: list[dict] = []
+    i = lines.index("Shipment progress") + 1
+    while i < len(lines):
+        line = lines[i]
+        if line in TIMELINE_STOP:
+            break
+        if _skip_timeline_line(line):
+            i += 1
+            continue
+        if (
+            DATE_LINE.match(line)
+            and i + 1 < len(lines)
+            and TIME_LINE.match(lines[i + 1])
+        ):
+            date = line
+            time = lines[i + 1]
+            description = lines[i + 2] if i + 2 < len(lines) else ""
+            location = ""
+            i += 3
+            if i < len(lines):
+                nxt = lines[i]
+                if (
+                    not DATE_LINE.match(nxt)
+                    and not TIME_LINE.match(nxt)
+                    and not _skip_timeline_line(nxt)
+                    and nxt not in TIMELINE_STOP
+                ):
+                    location = nxt
+                    i += 1
+            events.append(
+                {
+                    "date": date,
+                    "time": time,
+                    "description": description,
+                    "location": location or None,
+                }
+            )
+            continue
+        i += 1
+    return events
+
+
+def journey_event_to_pipe(event: dict) -> str:
+    parts = [
+        event.get("date") or "",
+        event.get("time") or "",
+        event.get("description") or "",
+        event.get("location") or "",
+    ]
+    return " | ".join(part for part in parts if part)
+
+
+def year_from_status(summary: str) -> int | None:
+    match = re.search(r"\d{4}", summary or "")
+    return int(match.group()) if match else None
+
+
 def maybe_select_courier(driver, courier: str):
     if not courier:
         return
@@ -246,7 +356,7 @@ def extract_status_and_history(driver, body_text: str):
     except NoSuchElementException:
         pass
 
-    lines = [l.strip() for l in body_text.splitlines() if l.strip()]
+    lines = [line.strip() for line in body_text.splitlines() if line.strip()]
     if not status_line:
         for el in driver.find_elements(By.CSS_SELECTOR, "[class*='status']"):
             text = el.text.strip().splitlines()[0] if el.text.strip() else ""
@@ -263,38 +373,8 @@ def extract_status_and_history(driver, body_text: str):
             if status_line:
                 break
 
-    last_update = ""
-    if "Shipment progress" in lines:
-        idx = lines.index("Shipment progress")
-        chunk = []
-        stop_prefixes = (
-            "Show all",
-            "Tracking number",
-            "Get real-time",
-            "ADVERTISEMENT",
-            "Send your parcel",
-            "Choose from",
-            "Full time",
-            "Grow your career",
-        )
-        for line in lines[idx + 1 :]:
-            if line == "Tracking number" or line.startswith(stop_prefixes):
-                break
-            chunk.append(line)
-            if len(chunk) >= 4:
-                break
-        last_update = " | ".join(chunk)
-
-    if not last_update:
-        date_pattern = re.compile(
-            r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+\w+\s+\d{4}"
-        )
-        for line in lines:
-            if date_pattern.search(line):
-                last_update = line
-                break
-
-    return status_line, last_update
+    journey = extract_journey(body_text)
+    return status_line, journey
 
 
 def detect_courier_from_page(body_text: str, tracking_number: str, page_url: str) -> tuple[str, str]:
@@ -321,6 +401,7 @@ def format_delivery_datetime(
     delivery_date_str: str | None,
     event_date: str | None = None,
     event_time: str | None = None,
+    reference_year: int | None = None,
 ) -> str | None:
     """Normalize delivery date/time to yyyy-mm-dd HH:mm:ss."""
     dt = None
@@ -336,7 +417,11 @@ def format_delivery_datetime(
 
     if dt is None and event_date:
         year_match = re.search(r"\d{4}", delivery_date_str or "")
-        year = int(year_match.group()) if year_match else datetime.now().year
+        year = (
+            int(year_match.group())
+            if year_match
+            else reference_year or datetime.now().year
+        )
         for fmt in ("%d %b", "%d %B"):
             try:
                 dt = datetime.strptime(f"{event_date} {year}", f"{fmt} %Y")
@@ -394,20 +479,33 @@ def parse_shipment(summary: str, raw_text: str) -> dict:
     }
 
 
-def parse_latest_event(last_update: str) -> dict | None:
-    if not last_update:
-        return None
+def enrich_journey(journey: list[dict], summary: str, shipment: dict) -> list[dict]:
+    """Add normalized datetime to each journey step."""
+    raw_delivery = shipment.get("delivery_date")
+    if raw_delivery and re.match(r"^\d{4}-\d{2}-\d{2}", str(raw_delivery)):
+        reference_year = int(str(raw_delivery)[:4])
+    else:
+        reference_year = year_from_status(summary)
 
-    parts = [part.strip() for part in last_update.split("|")]
-    event = {
-        "date": parts[0] if len(parts) > 0 and parts[0] else None,
-        "time": parts[1] if len(parts) > 1 and parts[1] else None,
-        "description": parts[2] if len(parts) > 2 and parts[2] else None,
-        "location": parts[3] if len(parts) > 3 and parts[3] else None,
-    }
-    if not any(event.values()):
-        return {"raw": last_update}
-    return event
+    enriched = []
+    for event in journey:
+        item = dict(event)
+        dt = format_delivery_datetime(
+            None,
+            item.get("date"),
+            item.get("time"),
+            reference_year=reference_year,
+        )
+        if dt:
+            item["datetime"] = dt
+        enriched.append(item)
+    return enriched
+
+
+def parse_latest_event(journey: list[dict]) -> dict | None:
+    if not journey:
+        return None
+    return dict(journey[0])
 
 
 def parse_error(error: str) -> dict | None:
@@ -422,13 +520,15 @@ def parse_error(error: str) -> dict | None:
 
 def result_to_payload(result: TrackResult) -> dict:
     shipment = parse_shipment(result.status, result.raw_text)
-    latest_event = parse_latest_event(result.last_update)
+    journey = enrich_journey(result.journey, result.status, shipment)
+    latest_event = parse_latest_event(journey)
     error = parse_error(result.error)
 
     formatted_delivery = format_delivery_datetime(
         shipment.get("delivery_date"),
         (latest_event or {}).get("date"),
         (latest_event or {}).get("time"),
+        reference_year=year_from_status(result.status),
     )
     if formatted_delivery:
         shipment["delivery_date"] = formatted_delivery
@@ -443,6 +543,8 @@ def result_to_payload(result: TrackResult) -> dict:
         },
         "shipment": shipment,
         "latest_event": latest_event,
+        "journey": journey,
+        "journey_count": len(journey),
         "source_url": result.page_url or None,
         "error": error,
         "debug": {
@@ -474,6 +576,7 @@ def track_one(tracking_number: str, courier: str = "") -> TrackResult:
             driver = build_driver()
             wait = WebDriverWait(driver, 20)
             navigate_to_tracking(driver, wait, tracking_number, courier)
+            expand_shipment_timeline(driver)
 
             body_text = driver.find_element(By.TAG_NAME, "body").text
             result.raw_text = body_text
@@ -485,9 +588,10 @@ def track_one(tracking_number: str, courier: str = "") -> TrackResult:
             result.courier_slug = slug or (
                 normalize_courier_slug(courier) if courier else ""
             )
-            status_line, last_update = extract_status_and_history(driver, body_text)
+            status_line, journey = extract_status_and_history(driver, body_text)
             result.status = status_line
-            result.last_update = last_update
+            result.journey = journey
+            result.last_update = journey_event_to_pipe(journey[0]) if journey else ""
         except Exception as exc:  # noqa: BLE001
             result.error = f"{type(exc).__name__}: {exc}"
         finally:
@@ -498,116 +602,10 @@ def track_one(tracking_number: str, courier: str = "") -> TrackResult:
 
 app = Flask(__name__)
 
-PAGE_HTML = """
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>tracking.my lookup</title>
-<style>
-  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #1d1d1f; }
-  h1 { font-size: 20px; }
-  form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
-  input { flex: 1; min-width: 180px; padding: 10px 12px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 14px; }
-  button { padding: 10px 18px; border: none; border-radius: 8px; background: #0071e3; color: white; font-size: 14px; cursor: pointer; }
-  button:disabled { background: #aaa; cursor: default; }
-  .result { border: 1px solid #e5e5ea; border-radius: 10px; padding: 16px; margin-top: 8px; }
-  .label { font-size: 12px; color: #6e6e73; text-transform: uppercase; letter-spacing: 0.04em; }
-  .value { font-size: 15px; margin: 2px 0 12px 0; }
-  .error { color: #d70015; }
-  details { margin-top: 8px; }
-  pre { white-space: pre-wrap; background: #f5f5f7; padding: 12px; border-radius: 8px; font-size: 12px; max-height: 300px; overflow: auto; }
-</style>
-</head>
-<body>
-  <h1>tracking.my lookup</h1>
-  <form id="f">
-    <input id="tn" placeholder="Tracking number" required>
-    <input id="courier" placeholder="Courier (optional)">
-    <button id="btn" type="submit">Track</button>
-  </form>
-  <div id="out"></div>
-
-<script>
-const form = document.getElementById('f');
-const out = document.getElementById('out');
-const btn = document.getElementById('btn');
-
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const tn = document.getElementById('tn').value.trim();
-  const courier = document.getElementById('courier').value.trim();
-  if (!tn) return;
-
-  btn.disabled = true;
-  btn.textContent = 'Tracking...';
-  out.innerHTML = '';
-
-  try {
-    const res = await fetch(`/api/track?tracking_number=${encodeURIComponent(tn)}&courier=${encodeURIComponent(courier)}`);
-    const data = await res.json();
-    render(data);
-  } catch (err) {
-    out.innerHTML = `<div class="result error">Request failed: ${err}</div>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Track';
-  }
-});
-
-function render(data) {
-  const shipment = data.shipment || {};
-  const event = data.latest_event || {};
-  const courier = data.courier || {};
-  const statusText = shipment.summary || shipment.status || '(not found - see debug below)';
-
-  let html = '<div class="result">';
-  html += `<div class="label">Tracking number</div><div class="value">${escapeHtml(data.tracking_number || '')}</div>`;
-
-  if (courier.detected || courier.slug) {
-    html += `<div class="label">Courier</div><div class="value">${escapeHtml(courier.detected || courier.slug || '-')}</div>`;
-  }
-
-  html += `<div class="label">Status</div><div class="value">${escapeHtml(statusText)}</div>`;
-
-  if (shipment.delivery_date) {
-    html += `<div class="label">Delivery date</div><div class="value">${escapeHtml(shipment.delivery_date)}</div>`;
-  }
-
-  if (event.date || event.description) {
-    const eventLine = [event.date, event.time, event.description, event.location].filter(Boolean).join(' · ');
-    html += `<div class="label">Latest event</div><div class="value">${escapeHtml(eventLine || '-')}</div>`;
-  }
-
-  if (data.error) {
-    html += `<div class="label">Error</div><div class="value error">${escapeHtml(data.error.message || data.error.type || '')}</div>`;
-  }
-
-  const health = data.parser_health || {};
-  if (health.needs_fix) {
-    html += `<div class="label">Parser alert</div><div class="value error">${escapeHtml(health.message || 'Parser may need code updates')}</div>`;
-    if (health.alert && health.alert.sent) {
-      html += `<div class="value">Alert sent via: ${escapeHtml((health.alert.channels || []).join(', '))}</div>`;
-    }
-  }
-
-  html += `<details><summary>Raw page text (debug)</summary><pre>${escapeHtml((data.debug && data.debug.raw_text) || '')}</pre></details>`;
-  html += '</div>';
-  out.innerHTML = html;
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-</script>
-</body>
-</html>
-"""
-
 
 @app.route("/")
 def home():
-    return render_template_string(PAGE_HTML)
+    return render_template("index.html")
 
 
 @app.route("/api/track")

@@ -45,7 +45,12 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-from app import extract_status_and_history, navigate_to_tracking
+from app import (
+    expand_shipment_timeline,
+    extract_status_and_history,
+    journey_event_to_pipe,
+    navigate_to_tracking,
+)
 
 INPUT_CSV = "tracking_numbers.csv"
 OUTPUT_CSV = "results.csv"
@@ -104,13 +109,14 @@ def track_one(driver, tracking_number: str, courier: str = "") -> TrackResult:
     try:
         wait = WebDriverWait(driver, 20)
         navigate_to_tracking(driver, wait, tracking_number, courier)
+        expand_shipment_timeline(driver)
 
         body_text = driver.find_element(By.TAG_NAME, "body").text
         result.raw_text = body_text
 
-        status_line, last_update = extract_status_and_history(driver, body_text)
+        status_line, journey = extract_status_and_history(driver, body_text)
         result.status = status_line
-        result.last_update = last_update
+        result.last_update = journey_event_to_pipe(journey[0]) if journey else ""
 
     except Exception as exc:  # noqa: BLE001 - we want to record any failure
         result.error = f"{type(exc).__name__}: {exc}"
